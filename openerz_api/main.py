@@ -47,7 +47,7 @@ class OpenERZConnector:
             "start": start_date,
             "end": end_date,
             "offset": 0,
-            "limit": 0,
+            "limit": 1,
             "lang": "en",
             "sort": "date",
         }
