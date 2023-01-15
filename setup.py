@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="openerz-api",
-    version="0.1.0",
+    version="0.2.0",
     author="Michał Ziemski",
     author_email="michal@terrestryal.com",
     description="A Python wrapper around the OpenERZ API.",
