@@ -93,7 +93,7 @@ def test_sensor_make_api_request():
                 "start": "2019-12-10",
                 "end": "2020-01-10",
                 "offset": 0,
-                "limit": 0,
+                "limit": 1,
                 "lang": "en",
                 "sort": "date",
             }
