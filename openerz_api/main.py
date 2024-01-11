@@ -44,6 +44,7 @@ class OpenERZConnector:
 
         payload = {
             "zip": self.zip,
+            "types":self.waste_type,
             "start": start_date,
             "end": end_date,
             "offset": 0,
@@ -51,7 +52,7 @@ class OpenERZConnector:
             "lang": "en",
             "sort": "date",
         }
-        url = f"http://openerz.metaodi.ch/api/calendar/{self.waste_type}.json"
+        url = f"https://openerz.metaodi.ch/api/calendar.json"
 
         try:
             self.last_api_response = requests.get(url, params=payload, headers=headers)
@@ -73,7 +74,7 @@ class OpenERZConnector:
             return None
         result_list = response_json.get("result")
         first_scheduled_pickup = result_list[0]
-        if first_scheduled_pickup["zip"] == self.zip and first_scheduled_pickup["type"] == self.waste_type:
+        if first_scheduled_pickup["zip"] == self.zip and first_scheduled_pickup["waste_type"] == self.waste_type:
             return first_scheduled_pickup["date"]
         self.logger.warning("Either zip or waste type does not match the ones specified in the configuration.")
         return None
