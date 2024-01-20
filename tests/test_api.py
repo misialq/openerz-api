@@ -87,9 +87,10 @@ def test_sensor_make_api_request():
             test_openerz.make_api_request()
 
             expected_headers = {"accept": "application/json"}
-            expected_url = "http://openerz.metaodi.ch/api/calendar/glass.json"
+            expected_url = "https://openerz.metaodi.ch/api/calendar.json"
             expected_payload = {
                 "zip": 1234,
+                "types": "glass",
                 "start": "2019-12-10",
                 "end": "2020-01-10",
                 "offset": 0,
@@ -134,7 +135,7 @@ def test_sensor_parse_api_response_ok():
 
         response_data = {
             "_metadata": {"total_count": 1},
-            "result": [{"zip": 1234, "type": "glass", "date": "2020-01-10"}],
+            "result": [{"zip": 1234, "waste_type": "glass", "date": "2020-01-10"}],
         }
         test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
 
@@ -197,7 +198,7 @@ def test_sensor_parse_api_response_wrong_type():
 
         response_data = {
             "_metadata": {"total_count": 1},
-            "result": [{"zip": 1234, "type": "metal", "date": "2020-01-10"}],
+            "result": [{"zip": 1234, "waste_type": "metal", "date": "2020-01-10"}],
         }
 
         with LogCapture() as captured_logs:
