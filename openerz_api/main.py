@@ -6,14 +6,26 @@ from datetime import datetime, timedelta
 class OpenERZConnector:
     """A simple connector to interact with OpenERZ API."""
 
-    def __init__(self, zip_code, waste_type):
+    def __init__(self, zip_code=None, waste_type=None, region=None):
         """Initialize the API connector.
         
         Args:
-        zip_code (int): post code of the area of interest
+        zip_code (int, optional): post code of the area of interest. Either this or region need to be set
         waste_type (str): type of waste to be picked up (paper/cardboard/waste/cargotram/etram/organic/textile)
+        region (str, optional): region key. Either this or zip_code needs to be set.
+        
+        Raises:
+        ValueError: If neither zip_code nor region is provided.
+        ValueError: If waste_type is not provided.
         """
+        if zip_code is None and region is None:
+            raise ValueError("Either zip_code or region must be provided.")
+        
+        if waste_type is None:
+            raise ValueError("Waste type must be provided.")
+
         self.zip = zip_code
+        self.region = region
         self.waste_type = waste_type
         self.start_date = datetime.now()
         self.end_date = None
@@ -44,6 +56,7 @@ class OpenERZConnector:
 
         payload = {
             "zip": self.zip,
+            "region": self.region,
             "types":self.waste_type,
             "start": start_date,
             "end": end_date,
@@ -74,9 +87,11 @@ class OpenERZConnector:
             return None
         result_list = response_json.get("result")
         first_scheduled_pickup = result_list[0]
-        if first_scheduled_pickup["zip"] == self.zip and first_scheduled_pickup["waste_type"] == self.waste_type:
+        if ((self.zip and first_scheduled_pickup["zip"] == self.zip) or
+            (self.region and first_scheduled_pickup["region"] == self.region)) and \
+            first_scheduled_pickup["waste_type"] == self.waste_type:
             return first_scheduled_pickup["date"]
-        self.logger.warning("Either zip or waste type does not match the ones specified in the configuration.")
+        self.logger.warning("Either zip, region or waste type does not match the ones specified in the configuration.")
         return None
 
     def find_next_pickup(self, day_offset=31):
