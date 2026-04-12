@@ -96,6 +96,7 @@ def test_sensor_make_api_request():
             expected_url = "https://openerz.metaodi.ch/api/calendar.json"
             expected_payload = {
                 "zip": 1234,
+                "region": None,
                 "types": "glass",
                 "start": "2019-12-10",
                 "end": "2020-01-10",
@@ -196,7 +197,7 @@ def test_sensor_parse_api_response_wrong_zip():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip or waste type does not match the ones "
+                    "Either zip, region or waste type does not match the ones "
                     "specified in the configuration.",
                 )
             )
@@ -224,7 +225,7 @@ def test_sensor_parse_api_response_wrong_type():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip or waste type does not match the ones "
+                    "Either zip, region or waste type does not match the ones "
                     "specified in the configuration.",
                 )
             )
