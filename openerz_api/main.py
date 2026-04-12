@@ -13,14 +13,14 @@ class OpenERZConnector:
         zip_code (int, optional): post code of the area of interest. Either this or region need to be set
         waste_type (str): type of waste to be picked up (paper/cardboard/waste/cargotram/etram/organic/textile)
         region (str, optional): region key. Either this or zip_code needs to be set.
-        
+
         Raises:
         ValueError: If neither zip_code nor region is provided.
         ValueError: If waste_type is not provided.
         """
         if zip_code is None and region is None:
             raise ValueError("Either zip_code or region must be provided.")
-        
+
         if waste_type is None:
             raise ValueError("Waste type must be provided.")
 
@@ -57,7 +57,7 @@ class OpenERZConnector:
         payload = {
             "zip": self.zip,
             "region": self.region,
-            "types":self.waste_type,
+            "types": self.waste_type,
             "start": start_date,
             "end": end_date,
             "offset": 0,
@@ -65,19 +65,23 @@ class OpenERZConnector:
             "lang": "en",
             "sort": "date",
         }
-        url = f"https://openerz.metaodi.ch/api/calendar.json"
+        url = "https://openerz.metaodi.ch/api/calendar.json"
 
         try:
             self.last_api_response = requests.get(url, params=payload, headers=headers)
         except requests.exceptions.RequestException as connection_error:
-            self.logger.error("RequestException while making request to OpenERZ: %s", connection_error)
+            self.logger.error(
+                "RequestException while making request to OpenERZ: %s", connection_error
+            )
 
     def parse_api_response(self):
-        """Parse the JSON response received from the OpenERZ API and return a date of the next pickup."""
+        """Parse the JSON response received from the OpenERZ API
+        and return a date of the next pickup."""
 
         if not self.last_api_response.ok:
             self.logger.warning(
-                "Last request to OpenERZ was not successful. Status code: %d", self.last_api_response.status_code,
+                "Last request to OpenERZ was not successful. Status code: %d",
+                self.last_api_response.status_code,
             )
             return None
 
@@ -95,7 +99,8 @@ class OpenERZConnector:
         return None
 
     def find_next_pickup(self, day_offset=31):
-        """Find the next pickup date within the next X days, given zip_code and waste type
+        """Find the next pickup date within the next X days,
+            given zip_code and waste type
 
         Args:
         day_offset (int): difference in days between start and end date of the request
