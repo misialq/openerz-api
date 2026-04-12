@@ -233,6 +233,80 @@ def test_sensor_make_api_request_connection_error():
                 )
 
 
+def test_list_types():
+    """Test listing waste types."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {"_metadata": {"total_count": 2}, "result": ["glass", "paper"]},
+        )
+
+        types = OpenERZConnector.list_types()
+
+        expected_headers = {"accept": "application/json"}
+        expected_url = "https://openerz.metaodi.ch/api/parameter/types"
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert types == ["glass", "paper"]
+        assert used_args[0] == expected_url
+        assertDictEqual(used_kwargs["headers"], expected_headers)
+        assert used_kwargs["params"] is None
+
+
+def test_list_types_with_region():
+    """Test listing waste types for a region."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {"_metadata": {"total_count": 2}, "result": ["paper", "waste"]},
+        )
+
+        types = OpenERZConnector.list_types(region="zurich")
+
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert types == ["paper", "waste"]
+        assert used_args[0] == "https://openerz.metaodi.ch/api/parameter/types"
+        assertDictEqual(used_kwargs["params"], {"region": "zurich"})
+
+
+def test_list_types_not_ok():
+    """Test handling an erroneous parameter endpoint response."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.return_value = MockAPIResponse(False, 404, {"result": []})
+
+        with LogCapture() as captured_logs:
+            types = OpenERZConnector.list_types()
+            assert types is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Request to OpenERZ parameter endpoint types was not successful. "
+                    "Status code: 404",
+                )
+            )
+
+
+def test_list_types_connection_error():
+    """Test handling parameter endpoint connection errors."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.side_effect = RequestException("Connection timed out")
+
+        with LogCapture() as captured_logs:
+            types = OpenERZConnector.list_types()
+            assert types is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "ERROR",
+                    "RequestException while making request to OpenERZ parameter "
+                    "endpoint types: Connection timed out",
+                ),
+                order_matters=False,
+            )
+
+
 def test_sensor_parse_api_response_ok():
     """Test whether API response is parsed correctly."""
     mock_datetime, zip_code, waste_type = setup_method()

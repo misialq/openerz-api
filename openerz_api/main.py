@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 class OpenERZConnector:
     """A simple connector to interact with OpenERZ API."""
 
+    BASE_URL = "https://openerz.metaodi.ch"
+
     def __init__(self, zip_code=None, waste_type=None, region=None, area=None):
         """Initialize the API connector.
 
@@ -70,6 +72,42 @@ class OpenERZConnector:
             "sort": "date",
         }
 
+    @classmethod
+    def fetch_parameter_values(cls, parameter_name, region=None):
+        """Fetch available values from a parameter endpoint."""
+
+        headers = {"accept": "application/json"}
+        params = {"region": region} if region is not None else None
+        url = f"{cls.BASE_URL}/api/parameter/{parameter_name}"
+        logger = logging.getLogger(__name__)
+
+        try:
+            response = requests.get(url, params=params, headers=headers)
+        except requests.exceptions.RequestException as connection_error:
+            logger.error(
+                "RequestException while making request to OpenERZ parameter endpoint %s: %s",
+                parameter_name,
+                connection_error,
+            )
+            return None
+
+        if not response.ok:
+            logger.warning(
+                "Request to OpenERZ parameter endpoint %s was not successful. Status code: %d",
+                parameter_name,
+                response.status_code,
+            )
+            return None
+
+        response_json = response.json()
+        return response_json.get("result", [])
+
+    @classmethod
+    def list_types(cls, region=None):
+        """Return available waste types, optionally filtered by region."""
+
+        return cls.fetch_parameter_values("types", region=region)
+
     def pickup_matches_configuration(self, pickup):
         """Check whether a pickup entry matches the configured filters."""
 
@@ -93,7 +131,7 @@ class OpenERZConnector:
 
         headers = {"accept": "application/json"}
         payload = self.build_calendar_payload()
-        url = "https://openerz.metaodi.ch/api/calendar.json"
+        url = f"{self.BASE_URL}/api/calendar.json"
 
         try:
             self.last_api_response = requests.get(url, params=payload, headers=headers)
