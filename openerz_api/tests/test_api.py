@@ -365,7 +365,10 @@ def test_list_areas():
         expected_headers = {"accept": "application/json"}
         expected_url = "https://openerz.metaodi.ch/api/parameter/areas"
         used_args, used_kwargs = patched_requests.get.call_args_list[0]
-        assert areas == [{"region": "zurich", "area": "a"}, {"region": "zurich", "area": "b"}]
+        assert areas == [
+            {"region": "zurich", "area": "a"},
+            {"region": "zurich", "area": "b"},
+        ]
         assert used_args[0] == expected_url
         assertDictEqual(used_kwargs["headers"], expected_headers)
         assert used_kwargs["params"] is None
@@ -377,7 +380,10 @@ def test_list_areas_with_region():
         patched_requests.get.return_value = MockAPIResponse(
             True,
             200,
-            {"_metadata": {"total_count": 1}, "result": [{"region": "zurich", "area": "a"}]},
+            {
+                "_metadata": {"total_count": 1},
+                "result": [{"region": "zurich", "area": "a"}],
+            },
         )
 
         areas = OpenERZConnector.list_areas(region="zurich")

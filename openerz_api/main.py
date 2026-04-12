@@ -154,7 +154,9 @@ class OpenERZConnector:
         if materials is not None:
             invalid_materials = []
             for material in materials:
-                normalized_material = material.lower() if isinstance(material, str) else material
+                normalized_material = (
+                    material.lower() if isinstance(material, str) else material
+                )
                 if normalized_material not in cls.STATION_MATERIALS:
                     invalid_materials.append(material)
                     continue
