@@ -1,6 +1,7 @@
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
 from requests.exceptions import RequestException
 from testfixtures import LogCapture
 from openerz_api.main import OpenERZConnector
@@ -48,6 +49,31 @@ def test_init():
         assert test_openerz.start_date == mock_datetime
         assert test_openerz.end_date is None
         assert test_openerz.last_api_response is None
+
+
+def test_init_raises_when_zip_and_region_missing():
+    """Test init validation when both zip and region are missing."""
+    with pytest.raises(ValueError, match="Either zip_code or region must be provided."):
+        OpenERZConnector(waste_type="glass")
+
+
+def test_init_raises_when_waste_type_missing():
+    """Test init validation when waste type is missing."""
+    with pytest.raises(ValueError, match="Waste type must be provided."):
+        OpenERZConnector(zip_code=1234)
+
+
+def test_init_accepts_region_without_zip():
+    """Test init accepts region-only configuration."""
+    mock_datetime, _, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+
+        test_openerz = OpenERZConnector(region="region_1", waste_type=waste_type)
+
+        assert test_openerz.zip is None
+        assert test_openerz.region == "region_1"
+        assert test_openerz.waste_type == waste_type
 
 
 def test_sensor_update_start_date():
@@ -111,6 +137,32 @@ def test_sensor_make_api_request():
             assertDictEqual(used_kwargs["params"], expected_payload)
 
 
+def test_sensor_make_api_request_region_only():
+    """Test making API requests when only region is configured."""
+    mock_datetime, _, waste_type = setup_method()
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = {}
+        with patch("openerz_api.main.datetime") as patched_time:
+            patched_time.now.return_value = mock_datetime
+            test_openerz = OpenERZConnector(region="region_1", waste_type=waste_type)
+            test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+            test_openerz.make_api_request()
+
+            expected_payload = {
+                "zip": None,
+                "region": "region_1",
+                "types": "glass",
+                "start": "2019-12-10",
+                "end": "2020-01-10",
+                "offset": 0,
+                "limit": 1,
+                "lang": "en",
+                "sort": "date",
+            }
+            _, used_kwargs = patched_requests.get.call_args_list[0]
+            assertDictEqual(used_kwargs["params"], expected_payload)
+
+
 def test_sensor_make_api_request_connection_error():
     """Test making API requests."""
     mock_datetime, zip_code, waste_type = setup_method()
@@ -144,6 +196,31 @@ def test_sensor_parse_api_response_ok():
         response_data = {
             "_metadata": {"total_count": 1},
             "result": [{"zip": 1234, "waste_type": "glass", "date": "2020-01-10"}],
+        }
+        test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
+
+        test_pickup_date = test_openerz.parse_api_response()
+        assert test_pickup_date == "2020-01-10"
+
+
+def test_sensor_parse_api_response_ok_region_match():
+    """Test whether API response is parsed correctly using region match."""
+    mock_datetime, _, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+        test_openerz = OpenERZConnector(region="region_1", waste_type=waste_type)
+        test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+
+        response_data = {
+            "_metadata": {"total_count": 1},
+            "result": [
+                {
+                    "zip": 9999,
+                    "region": "region_1",
+                    "waste_type": "glass",
+                    "date": "2020-01-10",
+                }
+            ],
         }
         test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
 
@@ -185,7 +262,9 @@ def test_sensor_parse_api_response_wrong_zip():
 
         response_data = {
             "_metadata": {"total_count": 1},
-            "result": [{"zip": 1235, "type": "glass", "date": "2020-01-10"}],
+            "result": [
+                {"zip": 1235, "type": "glass", "region": None, "date": "2020-01-10"}
+            ],
         }
 
         with LogCapture() as captured_logs:
@@ -214,6 +293,41 @@ def test_sensor_parse_api_response_wrong_type():
         response_data = {
             "_metadata": {"total_count": 1},
             "result": [{"zip": 1234, "waste_type": "metal", "date": "2020-01-10"}],
+        }
+
+        with LogCapture() as captured_logs:
+            test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
+
+            test_pickup_date = test_openerz.parse_api_response()
+            assert test_pickup_date is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Either zip, region or waste type does not match the ones "
+                    "specified in the configuration.",
+                )
+            )
+
+
+def test_sensor_parse_api_response_wrong_region():
+    """Test handling unexpected region in API response."""
+    mock_datetime, _, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+        test_openerz = OpenERZConnector(region="region_1", waste_type=waste_type)
+        test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+
+        response_data = {
+            "_metadata": {"total_count": 1},
+            "result": [
+                {
+                    "zip": 1234,
+                    "region": "region_2",
+                    "waste_type": "glass",
+                    "date": "2020-01-10",
+                }
+            ],
         }
 
         with LogCapture() as captured_logs:
