@@ -345,6 +345,67 @@ def test_list_regions_not_ok():
             )
 
 
+def test_list_areas():
+    """Test listing available areas."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {
+                "_metadata": {"total_count": 2},
+                "result": [
+                    {"region": "zurich", "area": "a"},
+                    {"region": "zurich", "area": "b"},
+                ],
+            },
+        )
+
+        areas = OpenERZConnector.list_areas()
+
+        expected_headers = {"accept": "application/json"}
+        expected_url = "https://openerz.metaodi.ch/api/parameter/areas"
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert areas == [{"region": "zurich", "area": "a"}, {"region": "zurich", "area": "b"}]
+        assert used_args[0] == expected_url
+        assertDictEqual(used_kwargs["headers"], expected_headers)
+        assert used_kwargs["params"] is None
+
+
+def test_list_areas_with_region():
+    """Test listing areas for a region."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {"_metadata": {"total_count": 1}, "result": [{"region": "zurich", "area": "a"}]},
+        )
+
+        areas = OpenERZConnector.list_areas(region="zurich")
+
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert areas == [{"region": "zurich", "area": "a"}]
+        assert used_args[0] == "https://openerz.metaodi.ch/api/parameter/areas"
+        assertDictEqual(used_kwargs["params"], {"region": "zurich"})
+
+
+def test_list_areas_not_ok():
+    """Test handling an erroneous areas response."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.return_value = MockAPIResponse(False, 404, {"result": []})
+
+        with LogCapture() as captured_logs:
+            areas = OpenERZConnector.list_areas()
+            assert areas is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Request to OpenERZ parameter endpoint areas was not successful. "
+                    "Status code: 404",
+                )
+            )
+
+
 def test_sensor_parse_api_response_ok():
     """Test whether API response is parsed correctly."""
     mock_datetime, zip_code, waste_type = setup_method()
