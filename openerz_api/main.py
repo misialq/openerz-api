@@ -108,6 +108,12 @@ class OpenERZConnector:
 
         return cls.fetch_parameter_values("types", region=region)
 
+    @classmethod
+    def list_regions(cls):
+        """Return available regions."""
+
+        return cls.fetch_parameter_values("regions")
+
     def pickup_matches_configuration(self, pickup):
         """Check whether a pickup entry matches the configured filters."""
 

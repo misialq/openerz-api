@@ -307,6 +307,44 @@ def test_list_types_connection_error():
             )
 
 
+def test_list_regions():
+    """Test listing available regions."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {"_metadata": {"total_count": 2}, "result": ["zurich", "winterthur"]},
+        )
+
+        regions = OpenERZConnector.list_regions()
+
+        expected_headers = {"accept": "application/json"}
+        expected_url = "https://openerz.metaodi.ch/api/parameter/regions"
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert regions == ["zurich", "winterthur"]
+        assert used_args[0] == expected_url
+        assertDictEqual(used_kwargs["headers"], expected_headers)
+        assert used_kwargs["params"] is None
+
+
+def test_list_regions_not_ok():
+    """Test handling an erroneous regions response."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.return_value = MockAPIResponse(False, 404, {"result": []})
+
+        with LogCapture() as captured_logs:
+            regions = OpenERZConnector.list_regions()
+            assert regions is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Request to OpenERZ parameter endpoint regions was not successful. "
+                    "Status code: 404",
+                )
+            )
+
+
 def test_sensor_parse_api_response_ok():
     """Test whether API response is parsed correctly."""
     mock_datetime, zip_code, waste_type = setup_method()
