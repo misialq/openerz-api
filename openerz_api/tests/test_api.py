@@ -5,7 +5,9 @@ from requests.exceptions import RequestException
 from testfixtures import LogCapture
 from openerz_api.main import OpenERZConnector
 
-MOCK_DATETIME = datetime(year=2019, month=12, day=10, hour=11, minute=15, second=0, microsecond=0)
+MOCK_DATETIME = datetime(
+    year=2019, month=12, day=10, hour=11, minute=15, second=0, microsecond=0
+)
 
 
 class MockAPIResponse:
@@ -58,7 +60,9 @@ def test_sensor_update_start_date():
         patched_time.now.return_value = mock_datetime.replace(day=11)
         test_openerz.update_start_date()
 
-        expected_start_date = datetime(year=2019, month=12, day=11, hour=11, minute=15, second=0, microsecond=0)
+        expected_start_date = datetime(
+            year=2019, month=12, day=11, hour=11, minute=15, second=0, microsecond=0
+        )
         assert test_openerz.start_date == expected_start_date
 
 
@@ -71,7 +75,9 @@ def test_sensor_find_end_date():
 
         test_openerz.find_end_date()
 
-        expected_end_date = datetime(year=2020, month=1, day=10, hour=11, minute=15, second=0, microsecond=0)
+        expected_end_date = datetime(
+            year=2020, month=1, day=10, hour=11, minute=15, second=0, microsecond=0
+        )
         assert test_openerz.end_date == expected_end_date
 
 
@@ -119,7 +125,8 @@ def test_sensor_make_api_request_connection_error():
                     (
                         "openerz_api.main",
                         "ERROR",
-                        "RequestException while making request to OpenERZ: Connection timed out",
+                        "RequestException while making request to "
+                        "OpenERZ: Connection timed out",
                     ),
                     order_matters=False,
                 )
@@ -158,7 +165,13 @@ def test_sensor_parse_api_response_no_data():
 
             test_pickup_date = test_openerz.parse_api_response()
             assert test_pickup_date is None
-            captured_logs.check_present(("openerz_api.main", "WARNING", "Request to OpenERZ returned no results.",))
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Request to OpenERZ returned no results.",
+                )
+            )
 
 
 def test_sensor_parse_api_response_wrong_zip():
@@ -183,7 +196,8 @@ def test_sensor_parse_api_response_wrong_zip():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip or waste type does not match the ones specified in the configuration.",
+                    "Either zip or waste type does not match the ones "
+                    "specified in the configuration.",
                 )
             )
 
@@ -210,7 +224,8 @@ def test_sensor_parse_api_response_wrong_type():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip or waste type does not match the ones specified in the configuration.",
+                    "Either zip or waste type does not match the ones "
+                    "specified in the configuration.",
                 )
             )
 
@@ -231,5 +246,9 @@ def test_sensor_parse_api_response_not_ok():
             test_pickup_date = test_openerz.parse_api_response()
             assert test_pickup_date is None
             captured_logs.check_present(
-                ("openerz_api.main", "WARNING", "Last request to OpenERZ was not successful. Status code: 404",)
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Last request to OpenERZ was not successful. Status code: 404",
+                )
             )

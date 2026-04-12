@@ -64,7 +64,7 @@ class OpenERZConnector:
 
     def parse_api_response(self):
         """Parse the JSON response received from the OpenERZ API
-            and return a date of the next pickup."""
+        and return a date of the next pickup."""
 
         if not self.last_api_response.ok:
             self.logger.warning(
