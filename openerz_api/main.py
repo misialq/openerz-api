@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 class OpenERZConnector:
     """A simple connector to interact with OpenERZ API."""
 
-    def __init__(self, zip_code=None, waste_type=None, region=None):
+    def __init__(self, zip_code=None, waste_type=None, region=None, area=None):
         """Initialize the API connector.
 
         Args:
@@ -15,6 +15,8 @@ class OpenERZConnector:
         waste_type (str): type of waste to be picked up
             (paper/cardboard/waste/cargotram/etram/organic/textile).
         region (str, optional): region key. Either this or zip_code needs to be set.
+        area (str, optional): area label used to disambiguate collections
+            within the same zip code.
 
         Raises:
         ValueError: If neither zip_code nor region is provided.
@@ -28,6 +30,7 @@ class OpenERZConnector:
 
         self.zip = zip_code
         self.region = region
+        self.area = area.lower() if isinstance(area, str) else area
         self.waste_type = waste_type
         self.start_date = datetime.now()
         self.end_date = None
@@ -48,17 +51,16 @@ class OpenERZConnector:
 
         self.end_date = self.start_date + timedelta(days=day_offset)
 
-    def make_api_request(self):
-        """Construct a request and send it to the OpenERZ API."""
-
-        headers = {"accept": "application/json"}
+    def build_calendar_payload(self):
+        """Build the query parameters for the calendar endpoint."""
 
         start_date = self.start_date.strftime("%Y-%m-%d")
         end_date = self.end_date.strftime("%Y-%m-%d")
 
-        payload = {
+        return {
             "zip": self.zip,
             "region": self.region,
+            "area": self.area,
             "types": self.waste_type,
             "start": start_date,
             "end": end_date,
@@ -67,6 +69,30 @@ class OpenERZConnector:
             "lang": "en",
             "sort": "date",
         }
+
+    def pickup_matches_configuration(self, pickup):
+        """Check whether a pickup entry matches the configured filters."""
+
+        expected_values = {
+            "zip": self.zip,
+            "region": self.region,
+            "area": self.area,
+            "waste_type": self.waste_type,
+        }
+
+        for key, expected_value in expected_values.items():
+            if expected_value is None:
+                continue
+            if pickup.get(key) != expected_value:
+                return False
+
+        return True
+
+    def make_api_request(self):
+        """Construct a request and send it to the OpenERZ API."""
+
+        headers = {"accept": "application/json"}
+        payload = self.build_calendar_payload()
         url = "https://openerz.metaodi.ch/api/calendar.json"
 
         try:
@@ -93,13 +119,10 @@ class OpenERZConnector:
             return None
         result_list = response_json.get("result")
         first_scheduled_pickup = result_list[0]
-        if (
-            (self.zip and first_scheduled_pickup["zip"] == self.zip)
-            or (self.region and first_scheduled_pickup["region"] == self.region)
-        ) and first_scheduled_pickup["waste_type"] == self.waste_type:
+        if self.pickup_matches_configuration(first_scheduled_pickup):
             return first_scheduled_pickup["date"]
         self.logger.warning(
-            "Either zip, region or waste type does not match the "
+            "Either zip, region, area or waste type does not match the "
             "ones specified in the configuration."
         )
         return None

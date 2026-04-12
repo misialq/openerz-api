@@ -45,6 +45,7 @@ def test_init():
         test_openerz = OpenERZConnector(zip_code, waste_type)
 
         assert test_openerz.zip == 1234
+        assert test_openerz.area is None
         assert test_openerz.waste_type == "glass"
         assert test_openerz.start_date == mock_datetime
         assert test_openerz.end_date is None
@@ -73,6 +74,22 @@ def test_init_accepts_region_without_zip():
 
         assert test_openerz.zip is None
         assert test_openerz.region == "region_1"
+        assert test_openerz.area is None
+        assert test_openerz.waste_type == waste_type
+
+
+def test_init_accepts_area_and_normalizes_case():
+    """Test init accepts area and normalizes it for API requests."""
+    mock_datetime, zip_code, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+
+        test_openerz = OpenERZConnector(
+            zip_code=zip_code, waste_type=waste_type, area="A"
+        )
+
+        assert test_openerz.zip == zip_code
+        assert test_openerz.area == "a"
         assert test_openerz.waste_type == waste_type
 
 
@@ -123,6 +140,7 @@ def test_sensor_make_api_request():
             expected_payload = {
                 "zip": 1234,
                 "region": None,
+                "area": None,
                 "types": "glass",
                 "start": "2019-12-10",
                 "end": "2020-01-10",
@@ -151,6 +169,36 @@ def test_sensor_make_api_request_region_only():
             expected_payload = {
                 "zip": None,
                 "region": "region_1",
+                "area": None,
+                "types": "glass",
+                "start": "2019-12-10",
+                "end": "2020-01-10",
+                "offset": 0,
+                "limit": 1,
+                "lang": "en",
+                "sort": "date",
+            }
+            _, used_kwargs = patched_requests.get.call_args_list[0]
+            assertDictEqual(used_kwargs["params"], expected_payload)
+
+
+def test_sensor_make_api_request_with_area():
+    """Test making API requests when area is configured."""
+    mock_datetime, zip_code, waste_type = setup_method()
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = {}
+        with patch("openerz_api.main.datetime") as patched_time:
+            patched_time.now.return_value = mock_datetime
+            test_openerz = OpenERZConnector(
+                zip_code=zip_code, waste_type=waste_type, area="B"
+            )
+            test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+            test_openerz.make_api_request()
+
+            expected_payload = {
+                "zip": 1234,
+                "region": None,
+                "area": "b",
                 "types": "glass",
                 "start": "2019-12-10",
                 "end": "2020-01-10",
@@ -228,6 +276,31 @@ def test_sensor_parse_api_response_ok_region_match():
         assert test_pickup_date == "2020-01-10"
 
 
+def test_sensor_parse_api_response_ok_area_match():
+    """Test whether API response is parsed correctly using area match."""
+    mock_datetime, zip_code, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+        test_openerz = OpenERZConnector(zip_code, waste_type, area="a")
+        test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+
+        response_data = {
+            "_metadata": {"total_count": 1},
+            "result": [
+                {
+                    "zip": 1234,
+                    "area": "a",
+                    "waste_type": "glass",
+                    "date": "2020-01-10",
+                }
+            ],
+        }
+        test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
+
+        test_pickup_date = test_openerz.parse_api_response()
+        assert test_pickup_date == "2020-01-10"
+
+
 def test_sensor_parse_api_response_no_data():
     """Test whether API response is parsed correctly when no data returned."""
     mock_datetime, zip_code, waste_type = setup_method()
@@ -276,7 +349,7 @@ def test_sensor_parse_api_response_wrong_zip():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip, region or waste type does not match the ones "
+                    "Either zip, region, area or waste type does not match the ones "
                     "specified in the configuration.",
                 )
             )
@@ -304,7 +377,7 @@ def test_sensor_parse_api_response_wrong_type():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip, region or waste type does not match the ones "
+                    "Either zip, region, area or waste type does not match the ones "
                     "specified in the configuration.",
                 )
             )
@@ -339,7 +412,42 @@ def test_sensor_parse_api_response_wrong_region():
                 (
                     "openerz_api.main",
                     "WARNING",
-                    "Either zip, region or waste type does not match the ones "
+                    "Either zip, region, area or waste type does not match the ones "
+                    "specified in the configuration.",
+                )
+            )
+
+
+def test_sensor_parse_api_response_wrong_area():
+    """Test handling unexpected area in API response."""
+    mock_datetime, zip_code, waste_type = setup_method()
+    with patch("openerz_api.main.datetime") as patched_time:
+        patched_time.now.return_value = mock_datetime
+        test_openerz = OpenERZConnector(zip_code, waste_type, area="a")
+        test_openerz.end_date = mock_datetime.replace(year=2020, month=1, day=10)
+
+        response_data = {
+            "_metadata": {"total_count": 1},
+            "result": [
+                {
+                    "zip": 1234,
+                    "area": "b",
+                    "waste_type": "glass",
+                    "date": "2020-01-10",
+                }
+            ],
+        }
+
+        with LogCapture() as captured_logs:
+            test_openerz.last_api_response = MockAPIResponse(True, 200, response_data)
+
+            test_pickup_date = test_openerz.parse_api_response()
+            assert test_pickup_date is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Either zip, region, area or waste type does not match the ones "
                     "specified in the configuration.",
                 )
             )
