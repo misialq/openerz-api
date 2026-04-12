@@ -406,6 +406,123 @@ def test_list_areas_not_ok():
             )
 
 
+def test_list_stations():
+    """Test listing stations."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {
+                "_metadata": {"total_count": 1},
+                "result": [
+                    {
+                        "zip": 8001,
+                        "name": "Central",
+                        "kind": {"glass": True, "oil": False},
+                        "region": "zurich",
+                        "description": "Main station",
+                    }
+                ],
+            },
+        )
+
+        stations = OpenERZConnector.list_stations()
+
+        expected_headers = {"accept": "application/json"}
+        expected_url = "https://openerz.metaodi.ch/api/stations.json"
+        used_args, used_kwargs = patched_requests.get.call_args_list[0]
+        assert stations == [
+            {
+                "zip": 8001,
+                "name": "Central",
+                "kind": {"glass": True, "oil": False},
+                "region": "zurich",
+                "description": "Main station",
+            }
+        ]
+        assert used_args[0] == expected_url
+        assertDictEqual(used_kwargs["headers"], expected_headers)
+        assert used_kwargs["params"] is None
+
+
+def test_list_stations_with_filters():
+    """Test listing stations with query filters."""
+    with patch("openerz_api.main.requests") as patched_requests:
+        patched_requests.get.return_value = MockAPIResponse(
+            True,
+            200,
+            {"_metadata": {"total_count": 1}, "result": []},
+        )
+
+        OpenERZConnector.list_stations(
+            region="zurich",
+            zip_code=8001,
+            name="central",
+            materials=["Glass", "metal"],
+            sort="name:desc",
+            offset=10,
+            limit=25,
+        )
+
+        _, used_kwargs = patched_requests.get.call_args_list[0]
+        assertDictEqual(
+            used_kwargs["params"],
+            {
+                "region": "zurich",
+                "zip": 8001,
+                "name": "central",
+                "glass": True,
+                "metal": True,
+                "sort": "name:desc",
+                "offset": 10,
+                "limit": 25,
+            },
+        )
+
+
+def test_list_stations_with_invalid_material():
+    """Test listing stations rejects unsupported material filters."""
+    with pytest.raises(ValueError, match="Unsupported station materials: batteries"):
+        OpenERZConnector.list_stations(materials=["batteries"])
+
+
+def test_list_stations_not_ok():
+    """Test handling an erroneous stations response."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.return_value = MockAPIResponse(False, 404, {"result": []})
+
+        with LogCapture() as captured_logs:
+            stations = OpenERZConnector.list_stations()
+            assert stations is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "WARNING",
+                    "Request to OpenERZ stations endpoint was not successful. "
+                    "Status code: 404",
+                )
+            )
+
+
+def test_list_stations_connection_error():
+    """Test handling stations endpoint connection errors."""
+    with patch("openerz_api.main.requests.get") as patched_get:
+        patched_get.side_effect = RequestException("Connection timed out")
+
+        with LogCapture() as captured_logs:
+            stations = OpenERZConnector.list_stations()
+            assert stations is None
+            captured_logs.check_present(
+                (
+                    "openerz_api.main",
+                    "ERROR",
+                    "RequestException while making request to OpenERZ stations "
+                    "endpoint: Connection timed out",
+                ),
+                order_matters=False,
+            )
+
+
 def test_sensor_parse_api_response_ok():
     """Test whether API response is parsed correctly."""
     mock_datetime, zip_code, waste_type = setup_method()

@@ -7,6 +7,7 @@ class OpenERZConnector:
     """A simple connector to interact with OpenERZ API."""
 
     BASE_URL = "https://openerz.metaodi.ch"
+    STATION_MATERIALS = {"glass", "oil", "metal", "textile"}
 
     def __init__(self, zip_code=None, waste_type=None, region=None, area=None):
         """Initialize the API connector.
@@ -73,34 +74,50 @@ class OpenERZConnector:
         }
 
     @classmethod
-    def fetch_parameter_values(cls, parameter_name, region=None):
-        """Fetch available values from a parameter endpoint."""
+    def fetch_json_result(cls, path, endpoint_name, params=None):
+        """Fetch a JSON endpoint and return its result list."""
 
         headers = {"accept": "application/json"}
-        params = {"region": region} if region is not None else None
-        url = f"{cls.BASE_URL}/api/parameter/{parameter_name}"
+        filtered_params = None
+        if params is not None:
+            filtered_params = {
+                key: value for key, value in params.items() if value is not None
+            }
+            if not filtered_params:
+                filtered_params = None
+        url = f"{cls.BASE_URL}{path}"
         logger = logging.getLogger(__name__)
 
         try:
-            response = requests.get(url, params=params, headers=headers)
+            response = requests.get(url, params=filtered_params, headers=headers)
         except requests.exceptions.RequestException as connection_error:
             logger.error(
-                "RequestException while making request to OpenERZ parameter endpoint %s: %s",
-                parameter_name,
+                "RequestException while making request to OpenERZ %s: %s",
+                endpoint_name,
                 connection_error,
             )
             return None
 
         if not response.ok:
             logger.warning(
-                "Request to OpenERZ parameter endpoint %s was not successful. Status code: %d",
-                parameter_name,
+                "Request to OpenERZ %s was not successful. Status code: %d",
+                endpoint_name,
                 response.status_code,
             )
             return None
 
         response_json = response.json()
         return response_json.get("result", [])
+
+    @classmethod
+    def fetch_parameter_values(cls, parameter_name, region=None):
+        """Fetch available values from a parameter endpoint."""
+
+        return cls.fetch_json_result(
+            f"/api/parameter/{parameter_name}",
+            f"parameter endpoint {parameter_name}",
+            params={"region": region},
+        )
 
     @classmethod
     def list_types(cls, region=None):
@@ -119,6 +136,49 @@ class OpenERZConnector:
         """Return available areas, optionally filtered by region."""
 
         return cls.fetch_parameter_values("areas", region=region)
+
+    @classmethod
+    def list_stations(
+        cls,
+        region=None,
+        zip_code=None,
+        name=None,
+        materials=None,
+        sort=None,
+        offset=None,
+        limit=None,
+    ):
+        """Return waste collection stations filtered by the given criteria."""
+
+        material_params = {}
+        if materials is not None:
+            invalid_materials = []
+            for material in materials:
+                normalized_material = material.lower() if isinstance(material, str) else material
+                if normalized_material not in cls.STATION_MATERIALS:
+                    invalid_materials.append(material)
+                    continue
+                material_params[normalized_material] = True
+
+            if invalid_materials:
+                raise ValueError(
+                    "Unsupported station materials: "
+                    + ", ".join(str(material) for material in invalid_materials)
+                )
+
+        return cls.fetch_json_result(
+            "/api/stations.json",
+            "stations endpoint",
+            params={
+                "region": region,
+                "zip": zip_code,
+                "name": name,
+                "sort": sort,
+                "offset": offset,
+                "limit": limit,
+                **material_params,
+            },
+        )
 
     def pickup_matches_configuration(self, pickup):
         """Check whether a pickup entry matches the configured filters."""

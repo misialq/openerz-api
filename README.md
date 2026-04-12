@@ -19,4 +19,7 @@ connector = OpenERZConnector(zip_code=ZIP, waste_type=WASTE)
 
 # retrieve the next pick-up date within a period of choice
 next_pickup = connector.find_next_pickup(day_offset=15)
+
+# list recycling stations matching a filter
+stations = OpenERZConnector.list_stations(region="zurich", materials=["glass"])
 ```
