@@ -27,7 +27,7 @@ jobs:
         uv sync --locked --dev
     - name: Lint with flake8
       run: |
-        uv run flake8 . --statistics
+        uv run flake8 openerz_api --statistics
     - name: Test with pytest
       run: |
-        uv run pytest
+        uv run pytest openerz_api
